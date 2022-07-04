@@ -3,6 +3,7 @@ package com.elhult.sightcompass
 import android.hardware.SensorManager
 import kotlin.math.PI
 
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class Orientation(
     val azimuth: Float,
     val pitch: Float,
@@ -21,8 +22,8 @@ class Orientation(
          *
          * The rotation vector is in the first 4 components a unit quaternion in the surrounding
          * coordinate system....
-         *  X pointing eastwards, parallell to the ground
-         *  Y pointint north, parallell to the ground
+         *  X pointing eastwards, parallel to the ground
+         *  Y pointing north, parallel to the ground
          *  Z points towards the sky
          * Defining the rotation quaternion representing the phone, which is oriented like...
          *  x axis is "to the right"

@@ -22,7 +22,10 @@ import com.google.common.util.concurrent.ListenableFuture
 
 class MainActivity : AppCompatActivity() {
 
-    val LOGTAG = "Tag"
+    companion object {
+        private const val LOG_TAG = "Tag"
+    }
+
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
     private lateinit var binding: ActivityMainBinding
     private val requestPermissionLauncher: ActivityResultLauncher<String> =
@@ -41,8 +44,8 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.CAMERA
         ) == PermissionChecker.PERMISSION_GRANTED)
 
-    val runCamera: MutableLiveData<Boolean> = MutableLiveData<Boolean>(false)
-    val compassValue = MutableLiveData<Double>(0.0)
+    private val runCamera: MutableLiveData<Boolean> = MutableLiveData<Boolean>(false)
+    val compassValue = MutableLiveData(0.0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         // start the compass
         val sensorManager = getSystemService(SensorManager::class.java)
         compassValue.observe(this) {
-            Log.v(LOGTAG, "New compass value: $it")
+            Log.v(LOG_TAG, "New compass value: $it")
             binding.textBox.text = getString(R.string.degreeFormatter).format(it)
 
         }
@@ -104,7 +107,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initCameraPreview() {
         cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener(Runnable {
+        cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
             val preview: Preview = Preview.Builder()
                 .build()
