@@ -6,9 +6,9 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -20,13 +20,10 @@ import androidx.lifecycle.MutableLiveData
 import com.elhult.sightcompass.databinding.ActivityMainBinding
 import com.google.common.util.concurrent.ListenableFuture
 
-class MainActivity : AppCompatActivity() {
-
-    companion object {
-        private const val LOG_TAG = "Tag"
-    }
+class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
+    private lateinit var sensorManager: SensorManager
     private lateinit var binding: ActivityMainBinding
     private val requestPermissionLauncher: ActivityResultLauncher<String> =
         registerForActivityResult(
@@ -43,9 +40,19 @@ class MainActivity : AppCompatActivity() {
             this,
             Manifest.permission.CAMERA
         ) == PermissionChecker.PERMISSION_GRANTED)
+    private val hasRotationVectorSensor: Boolean
+        get() {
+            val tmp = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            return tmp != null
+        }
 
     private val runCamera: MutableLiveData<Boolean> = MutableLiveData<Boolean>(false)
-    val compassValue = MutableLiveData(0.0)
+    private val compassValue = MutableLiveData(0.0)
+
+
+    /* ***********************************************
+           ACTIVITY LIFE CYCLE HANDLERS
+     *********************************************** */
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,7 +60,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
 
-        // start the camera preview!
+        // Camera Setup
         runCamera.observe(this) {
             if (it) {
                 initCameraPreview()
@@ -65,41 +72,62 @@ class MainActivity : AppCompatActivity() {
             runCamera.value = true
         }
 
-        // start the compass
-        val sensorManager = getSystemService(SensorManager::class.java)
+        // Compass Setup
+        sensorManager = getSystemService(SensorManager::class.java)
         compassValue.observe(this) {
-            Log.v(LOG_TAG, "New compass value: $it")
             binding.textBox.text = getString(R.string.degreeFormatter).format(it)
 
         }
-        val listener = object : SensorEventListener {
-            override fun onSensorChanged(event: SensorEvent?) {
-                event?.let {
-                    when (event.sensor.type) {
-                        Sensor.TYPE_ROTATION_VECTOR ->
-                            event.values?.let {
-                                compassValue.value = Orientation.fromArray(it).compassVal
-                            }
-                        else -> { // ignore this case
-                        }
-                    }
-                }
-            }
+    }
 
-            override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
-                // ignore these events
-            }
-
+    override fun onResume() {
+        super.onResume()
+        if (hasRotationVectorSensor) {
+            val orientationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            sensorManager.registerListener(
+                this,
+                orientationSensor,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
+        } else {
+            AlertDialog.Builder(this)
+                .setMessage(R.string.no_rot_vec_sensor_msg)
+                .setCancelable(false)
+                .show()
         }
-        val orientationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        sensorManager.registerListener(
-            listener,
-            orientationSensor,
-            SensorManager.SENSOR_DELAY_NORMAL
-        )
+    }
+
+    override fun onPause() {
+        super.onPause()
+        sensorManager.unregisterListener(this)
     }
 
 
+    /* ***********************************************
+            ROTATION VECTOR SENSING
+     *********************************************** */
+    override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
+        // ignore these events
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        event?.let {
+            when (event.sensor.type) {
+                Sensor.TYPE_ROTATION_VECTOR ->
+                    event.values?.let {
+                        compassValue.value = Orientation.fromArray(it).compassVal
+                    }
+                else -> { // ignore this case
+                }
+            }
+        }
+
+    }
+
+
+    /* ***********************************************
+                    CAMERA PREVIEW MANAGEMENT
+    *********************************************** */
     private fun getCameraAccess() {
         // the callback is set up so that it repeats until I get the permission
         requestPermissionLauncher.launch(Manifest.permission.CAMERA)

@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">Sight Compass</string>
-    <string name="loading">...</string>
+    <string name="loading">…</string>
     <string name="degreeFormatter">%3.1f°</string>
+    <string name="no_rot_vec_sensor_msg">"This device don't support the Rotation Vector Sensor type. In practice, it means it does not have a magnetic compass. Therefore, the compass value will be very unreliable. So the app won't work for you. Sorry."</string>
 </resources>
