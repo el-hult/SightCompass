@@ -18,35 +18,18 @@ import androidx.core.content.PermissionChecker
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.MutableLiveData
 import com.elhult.sightcompass.databinding.ActivityMainBinding
-import com.google.common.util.concurrent.ListenableFuture
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
 
-    private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
-    private lateinit var sensorManager: SensorManager
+    private val sensorManager: SensorManager by lazy { getSystemService(SensorManager::class.java) }
     private lateinit var binding: ActivityMainBinding
-    private val requestPermissionLauncher: ActivityResultLauncher<String> =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-                runCamera.value = true
-            } else {
-                getCameraAccess()
-            }
-        }
     private val hasCamAccess: Boolean
         get() = (ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.CAMERA
         ) == PermissionChecker.PERMISSION_GRANTED)
     private val hasRotationVectorSensor: Boolean
-        get() {
-            val tmp = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-            return tmp != null
-        }
-
-    private val runCamera: MutableLiveData<Boolean> = MutableLiveData<Boolean>(false)
+        get() = (sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null)
     private val compassValue = MutableLiveData(0.0)
 
 
@@ -59,21 +42,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-
         // Camera Setup
-        runCamera.observe(this) {
-            if (it) {
-                initCameraPreview()
-            }
-        }
-        if (!hasCamAccess) {
-            getCameraAccess()
+        if (hasCamAccess) {
+            startCamPreview()
         } else {
-            runCamera.value = true
+            getCamPermissionAndStart()
         }
 
         // Compass Setup
-        sensorManager = getSystemService(SensorManager::class.java)
         compassValue.observe(this) {
             binding.textBox.text = getString(R.string.degreeFormatter).format(it)
 
@@ -82,6 +58,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onResume() {
         super.onResume()
+
+        // Start Compass, if possible
         if (hasRotationVectorSensor) {
             val orientationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
             sensorManager.registerListener(
@@ -99,6 +77,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onPause() {
         super.onPause()
+
+        // Stop compass to save some power
         sensorManager.unregisterListener(this)
     }
 
@@ -128,13 +108,31 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     /* ***********************************************
                     CAMERA PREVIEW MANAGEMENT
     *********************************************** */
-    private fun getCameraAccess() {
-        // the callback is set up so that it repeats until I get the permission
+
+    /**
+     * Nag the user for permission until they are granted
+     * then also start the preview
+     */
+    private fun getCamPermissionAndStart() {
+        val requestPermissionLauncher: ActivityResultLauncher<String> =
+            registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted: Boolean ->
+                if (isGranted) {
+                    startCamPreview()
+                } else {
+                    getCamPermissionAndStart()
+                }
+            }
         requestPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    private fun initCameraPreview() {
-        cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+    /**
+     * Bind the camera to the PreviewView. The binding is also bound to the activity lifecycle
+     * so I will not manually start/stop this binding in onPause and onResume
+     */
+    private fun startCamPreview() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
             val preview: Preview = Preview.Builder()
